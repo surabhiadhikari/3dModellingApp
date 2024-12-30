@@ -1,0 +1,11 @@
+<resources>
+    <!-- Base application theme -->
+    <style name="Theme._3dModellingApp" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Customize your theme -->
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryDark">@color/purple_700</item>
+        <item name="colorAccent">@color/teal_200</item>
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+</resources>
