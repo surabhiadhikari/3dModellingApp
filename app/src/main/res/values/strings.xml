@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">3dModellingApp</string>
+    <string name="capture_pictures">capture_pictures\n</string>
+    <string name="view_saved_project">view_saved_pictures\n</string>
+    <string name="saved_projects">saved_pictures\n</string>
+    <string name="capture">capture\n</string>
+    <string name="done">done</string>
+    <string name="arNavi_Model">arNavi_Model</string>
+</resources>
