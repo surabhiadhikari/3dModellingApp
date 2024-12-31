@@ -5,7 +5,6 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.widget.Button
-import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -19,16 +18,17 @@ import java.io.IOException
 
 class CaptureActivity : AppCompatActivity() {
     private val images: MutableList<Bitmap> = mutableListOf()
-    private lateinit var imageView: ImageView
+    private lateinit var captureButton: Button
     private lateinit var doneButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_capture)
 
-        imageView = findViewById(R.id.captureImageButton)
+        captureButton = findViewById(R.id.captureImageButton)
         doneButton = findViewById(R.id.doneButton)
 
+        // Request camera permission if not granted
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -36,27 +36,26 @@ class CaptureActivity : AppCompatActivity() {
                 this, arrayOf(Manifest.permission.CAMERA), 1
             )
         } else {
-            openCamera()
+            setupCaptureButton()
         }
 
         doneButton.setOnClickListener {
             if (images.size < 3) {
-                Toast.makeText(this, "Capture at least 3 images!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+                Toast.makeText(this, "Capture at least 3 images to create a 3D model!", Toast.LENGTH_SHORT).show()
+            } else {
+                generate3DModel()
             }
-            generate3DModel()
         }
     }
 
-    private fun openCamera() {
+    private fun setupCaptureButton() {
         val takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
             if (bitmap != null) {
                 images.add(bitmap)
-                imageView.setImageBitmap(bitmap)
+                Toast.makeText(this, "Captured image ${images.size}", Toast.LENGTH_SHORT).show()
             }
         }
 
-        val captureButton: Button = findViewById(R.id.captureImageButton)
         captureButton.setOnClickListener {
             takePictureLauncher.launch(null)
         }
