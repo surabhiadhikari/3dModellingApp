@@ -3,6 +3,8 @@ package com.example.a3dmodellingapp
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Button
 import android.widget.Toast
@@ -10,16 +12,21 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.*
 
 class CaptureActivity : AppCompatActivity() {
     private val images: MutableList<Bitmap> = mutableListOf()
     private lateinit var captureButton: Button
     private lateinit var doneButton: Button
+    private lateinit var currentPhotoPath: String
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,16 +56,31 @@ class CaptureActivity : AppCompatActivity() {
     }
 
     private fun setupCaptureButton() {
-        val takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
-            if (bitmap != null) {
+        val takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+            if (success) {
+                val file = File(currentPhotoPath)
+                val bitmap = BitmapFactory.decodeFile(file.absolutePath)
                 images.add(bitmap)
                 Toast.makeText(this, "Captured image ${images.size}", Toast.LENGTH_SHORT).show()
             }
         }
 
         captureButton.setOnClickListener {
-            takePictureLauncher.launch(null)
+            val photoFile = createImageFile()
+            val photoURI: Uri = FileProvider.getUriForFile(this, "com.example.a3dmodellingapp.fileprovider", photoFile)
+            currentPhotoPath = photoFile.absolutePath
+            takePictureLauncher.launch(photoURI)
         }
+    }
+
+    private fun createImageFile(): File {
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val storageDir: File = getExternalFilesDir(null)!!
+        return File.createTempFile(
+            "JPEG_${timeStamp}_", /* prefix */
+            ".jpg", /* suffix */
+            storageDir /* directory */
+        )
     }
 
     private fun generate3DModel() {
