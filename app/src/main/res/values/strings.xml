@@ -6,4 +6,7 @@
     <string name="capture">capture\n</string>
     <string name="done">done</string>
     <string name="arNavi_Model">arNavi_Model</string>
+    <string name="stop">Stop</string>
+    <string name="view_saved_image">Saved Image</string>
+
 </resources>

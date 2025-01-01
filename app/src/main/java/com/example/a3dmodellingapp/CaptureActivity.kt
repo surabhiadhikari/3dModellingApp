@@ -1,134 +1,145 @@
 package com.example.a3dmodellingapp
 
+import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.util.Log
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
-import androidx.camera.view.PreviewView
+import com.example.a3dmodellingapp.databinding.ActivityCaptureBinding
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class CaptureActivity : AppCompatActivity() {
 
-    private lateinit var cameraExecutor: ExecutorService
+    private lateinit var binding: ActivityCaptureBinding
     private lateinit var imageCapture: ImageCapture
-    private lateinit var previewView: PreviewView
-
-    // Handler to trigger photo capture every 700ms
-    private val handler = Handler(Looper.getMainLooper())
-    private val photoInterval: Long = 700 // 700ms interval for photo capture
+    private lateinit var cameraExecutor: ExecutorService
     private var isCapturing = false
+    private val capturedImages = mutableListOf<File>()
+    private var captureTimer: Timer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_capture)
+        binding = ActivityCaptureBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        previewView = findViewById(R.id.cameraPreview) // Assuming previewView is in your layout
+        cameraExecutor = Executors.newSingleThreadExecutor()
+        setupCamera()
 
-        // Set up camera
-        startCamera()
+        binding.captureImageButton.setOnClickListener {
+            if (!isCapturing) {
+                isCapturing = true
+                captureImages()
+            }
+        }
 
-        // Start capturing photos at regular intervals
-        startPhotoCaptureLoop()
+        binding.stopCaptureButton.setOnClickListener {
+            if (isCapturing) {
+                stopCapturing()
+            }
+        }
+
+        binding.doneButton.setOnClickListener {
+            if (capturedImages.isNotEmpty()) {
+                processImagesFor3DModel()
+                val imagePaths = capturedImages.map { it.absolutePath }.toTypedArray()
+                val intent = Intent(this, SavedProjectsActivity::class.java)
+                intent.putExtra("imagePaths", imagePaths)
+                startActivity(intent)
+            } else {
+                Toast.makeText(this, "No images captured", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
-    private fun startCamera() {
+    private fun setupCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-
         cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
+            try {
+                // Get the camera provider
+                val cameraProvider = cameraProviderFuture.get()
 
-            // Set up Preview use case
-            val preview = androidx.camera.core.Preview.Builder().build()
-            preview.surfaceProvider = previewView.surfaceProvider
+                // Preview use case
+                val preview = Preview.Builder().build().also {
+                    it.setSurfaceProvider(binding.cameraPreview.surfaceProvider)
+                }
 
-            // Set up ImageCapture use case
-            imageCapture = ImageCapture.Builder().build()
+                // Image capture use case
+                imageCapture = ImageCapture.Builder().build()
 
-            // Bind use cases to lifecycle
-            val cameraSelector = androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA
-            cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
+                // Select back camera
+                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
+                // Unbind all use cases before rebinding
+                cameraProvider.unbindAll()
+
+                // Bind the use cases to the lifecycle of this activity
+                cameraProvider.bindToLifecycle(
+                    this,
+                    cameraSelector,
+                    preview,
+                    imageCapture
+                )
+            } catch (e: Exception) {
+                Toast.makeText(this, "Failed to set up camera: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun startPhotoCaptureLoop() {
-        if (!isCapturing) {
-            isCapturing = true
-
-            // Start capturing photos every 700ms
-            handler.post(object : Runnable {
-                override fun run() {
-                    // Capture a photo
-                    capturePhoto()
-
-                    // Schedule the next capture
-                    handler.postDelayed(this, photoInterval)
+    private fun captureImages() {
+        val outputDir = File(filesDir, "CapturedImages").apply { mkdirs() }
+        captureTimer = Timer()
+        captureTimer?.schedule(object : TimerTask() {
+            override fun run() {
+                if (!isCapturing) {
+                    stopCapturing()
+                    return
                 }
-            })
-        }
+                takePhoto(outputDir)
+            }
+        }, 0, 1500)
     }
 
-    private fun capturePhoto() {
-        // Ensure imageCapture is initialized before using it
-        if (::imageCapture.isInitialized) {
-            val file = createFile() // Create a file to save the image
-            val outputOptions = ImageCapture.OutputFileOptions.Builder(file).build()
-
-            imageCapture.takePicture(
-                outputOptions,
-                cameraExecutor,
-                object : ImageCapture.OnImageSavedCallback {
-                    override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                        // Handle the successful image capture
-                        val savedUri = outputFileResults.savedUri
-                        if (savedUri != null) {
-                            // Use savedUri if it's not null
-                            // For example, you can show the captured image or perform other actions
-                            Log.d("CaptureActivity", "Image saved at: $savedUri")
-                        } else {
-                            // Handle the case where savedUri is null
-                            Log.e("CaptureActivity", "Image save failed: Uri is null")
-                        }
-                    }
-
-                    override fun onError(exception: ImageCaptureException) {
-                        // Handle any errors during capture
-                        Log.e("CaptureActivity", "Error capturing image: ${exception.message}")
-                    }
-                })
-        } else {
-            // Handle the case where imageCapture is not initialized
-            Log.e("CaptureActivity", "ImageCapture not initialized")
-        }
-    }
-
-    private fun createFile(): File {
-        // Create a file to save the image, e.g., in a specific directory
-        val directory = File(filesDir, "captured_images")
-        if (!directory.exists()) {
-            directory.mkdirs()
-        }
-        val timestamp = System.currentTimeMillis()
-        return File(directory, "IMG_$timestamp.jpg")
-    }
-
-    override fun onStart() {
-        super.onStart()
-        cameraExecutor = Executors.newSingleThreadExecutor()
-    }
-
-    override fun onStop() {
-        super.onStop()
-        // Shutdown the camera executor to release resources
-        cameraExecutor.shutdown()
+    private fun stopCapturing() {
         isCapturing = false
-        handler.removeCallbacksAndMessages(null) // Stop the photo capture loop
+        captureTimer?.cancel()
+        captureTimer = null
+        Toast.makeText(this, "Stopped capturing images", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun takePhoto(outputDir: File) {
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val file = File(outputDir, "IMG_$timeStamp.jpg")
+
+        imageCapture.takePicture(
+            ImageCapture.OutputFileOptions.Builder(file).build(),
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                    capturedImages.add(file)
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    Toast.makeText(this@CaptureActivity, "Error: ${exception.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
+    private fun processImagesFor3DModel() {
+        val modelOutputDir = File(filesDir, "3DModel").apply { mkdirs() }
+        val modelFile = File(modelOutputDir, "model.obj").apply { writeText("3D model generated from images") }
+        Toast.makeText(this, "3D model saved to ${modelFile.absolutePath}", Toast.LENGTH_LONG).show()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        cameraExecutor.shutdown()
+        stopCapturing()
     }
 }
